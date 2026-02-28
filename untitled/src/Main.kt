@@ -1,11 +1,9 @@
 import java.util.UUID
 
-// h
 enum class AssessmentType {
     LAB, TEST, EXAM, PROJECT
 }
 
-// j. Extension for base class (String)
 fun String.formatAsTitle(): String {
     return this.trim().split(" ").joinToString(" ") {
         it.replaceFirstChar { char -> char.uppercase() }
@@ -42,7 +40,6 @@ class Student(
         }
     }
 
-    // e. Method that returns a value
     fun calculateAverage(): Double {
         return if (grades.isEmpty()) 0.0 else grades.average()
     }
@@ -63,7 +60,7 @@ class Student(
     }
 }
 
-// Class describing a task (properties and methods)
+// Class describing a task
 class CourseTask(
     val title: String,
     val type: AssessmentType,

@@ -5,49 +5,53 @@ import android.app.TimePickerDialog
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowDropDown
-import androidx.compose.material.icons.filled.DateRange
-import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import kotlinx.coroutines.delay
+import androidx.navigation.NavHostController
+import androidx.navigation.NavType
+import androidx.navigation.compose.*
+import androidx.navigation.navArgument
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 import java.util.UUID
 
+// --- DATA LAYER ---
 data class GradeRecord(
     val id: String = UUID.randomUUID().toString(),
     val subject: String,
     val grade: Int,
     val label: String,
     val category: String,
-    val professor: String = ""
+    val professor: String,
+    val description: String = "Detailed description for this subject..."
 )
 
 data class CalendarEvent(
@@ -57,12 +61,21 @@ data class CalendarEvent(
     val deadlineMs: Long
 )
 
+val mockSubjects = listOf(
+    GradeRecord(subject = "Mobile Development", grade = 95, label = "Excellent", category = "Core", professor = "Dr. Smith"),
+    GradeRecord(subject = "Data Engineering", grade = 92, label = "Excellent", category = "Core", professor = "Prof. Johnson"),
+    GradeRecord(subject = "UI/UX Basics", grade = 96, label = "Excellent", category = "Elective", professor = "Ms. Wilson"),
+    GradeRecord(subject = "Algorithms", grade = 88, label = "Good", category = "Core", professor = "Dr. Alan"),
+    GradeRecord(subject = "Machine Learning", grade = 98, label = "Excellent", category = "Project", professor = "Dr. Turing")
+)
+
+// --- ENTRY POINT ---
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
             DigitalGradebookTheme {
-                MainAppScreen()
+                RootNavigation()
             }
         }
     }
@@ -76,265 +89,383 @@ fun DigitalGradebookTheme(content: @Composable () -> Unit) {
     )
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+// --- ROOT NAVIGATION ---
 @Composable
-fun MainAppScreen() {
-    var isLoading by remember { mutableStateOf(true) }
+fun RootNavigation() {
+    val navController = rememberNavController()
 
-    val subjectsList = remember { mutableStateListOf<GradeRecord>() }
-    val eventsList = remember { mutableStateListOf<CalendarEvent>() }
-    var selectedTabIndex by remember { mutableStateOf(0) }
-
-    LaunchedEffect(Unit) {//managing side effects
-        delay(1500)
-
-        subjectsList.addAll(
-            listOf(
-                GradeRecord(subject = "Mobile Development", grade = 95, label = "Excellent", category = "Core", professor = "Dr. Smith"),
-                GradeRecord(subject = "Data Engineering", grade = 92, label = "Excellent", category = "Core", professor = "Prof. Johnson"),
-                GradeRecord(subject = "UI/UX Basics", grade = 96, label = "Excellent", category = "Elective", professor = "Ms. Wilson")
-            )
-        )
-
-        val now = System.currentTimeMillis()
-        eventsList.addAll(
-            listOf(
-                CalendarEvent(title = "Submit Lab 4", category = "Core", deadlineMs = now + 86400000),
-                CalendarEvent(title = "Read chapter 5", category = "Elective", deadlineMs = now + 172800000)
-            )
-        )
-        isLoading = false
+    NavHost(navController = navController, startDestination = "onboarding") {
+        composable("onboarding") {
+            OnboardingScreen(navController)
+        }
+        composable("name_entry") {
+            NameEntryScreen(navController)
+        }
+        composable(
+            route = "main/{userName}",
+            arguments = listOf(navArgument("userName") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val userName = backStackEntry.arguments?.getString("userName") ?: "Student"
+            MainScreen(userName)
+        }
     }
+}
 
-    Box(
+// --- TASK 1: ONBOARDING SCREEN ---
+@Composable
+fun OnboardingScreen(navController: NavHostController) {
+    val savedStateHandle = navController.currentBackStackEntry?.savedStateHandle
+    val userName by savedStateHandle?.getStateFlow<String>("userName", "")?.collectAsState(initial = "") ?: remember { mutableStateOf("") }
+
+    Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFFF3F4F6))
-            .padding(top = 16.dp)
+            .padding(24.dp),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        if (isLoading) {
-            CircularProgressIndicator(
-                modifier = Modifier.align(Alignment.Center),
-                color = Color(0xFF6200EA)
-            )
-        } else {
-            Column(modifier = Modifier.fillMaxSize()) {
-                Box(modifier = Modifier.padding(horizontal = 16.dp)) {
-                    StudentProfileCard()
-                }
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                TabRow(
-                    selectedTabIndex = selectedTabIndex,
-                    containerColor = Color.Transparent,
-                    contentColor = Color(0xFF6200EA)
-                ) {
-                    Tab(
-                        selected = selectedTabIndex == 0,
-                        onClick = { selectedTabIndex = 0 },
-                        text = { Text("Subjects", fontWeight = FontWeight.Bold) }
-                    )
-                    Tab(
-                        selected = selectedTabIndex == 1,
-                        onClick = { selectedTabIndex = 1 },
-                        text = { Text("My Calendar", fontWeight = FontWeight.Bold) }
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                Box(modifier = Modifier.padding(horizontal = 16.dp)) {
-                    when (selectedTabIndex) {
-                        0 -> SubjectsContent(subjectsList)
-                        1 -> CalendarContent(eventsList)
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-//parent
-fun SubjectsContent(subjectsList: List<GradeRecord>) {
-    var selectedFilter by remember { mutableStateOf("All") }
-
-    val displayedSubjects by remember(selectedFilter, subjectsList) {
-        derivedStateOf {
-            if (selectedFilter == "All") subjectsList
-            else subjectsList.filter { it.category == selectedFilter }
-        }
-    }
-
-    Column(modifier = Modifier.fillMaxSize()) {
-        Text("Filter by Category:", fontWeight = FontWeight.Bold, color = Color.DarkGray)
-        Spacer(modifier = Modifier.height(8.dp))
-
-        FilterPanel(
-            selectedFilter = selectedFilter,
-            onFilterSelected = { selectedFilter = it },
-            options = listOf("All", "Core", "Elective", "Project")
+        Icon(
+            imageVector = Icons.Default.AccountCircle,
+            contentDescription = "Logo",
+            modifier = Modifier.size(120.dp),
+            tint = Color(0xFF6200EA)
         )
+        Spacer(modifier = Modifier.height(24.dp))
+        Text("Digital Gradebook", fontSize = 28.sp, fontWeight = FontWeight.Bold, color = Color(0xFF6200EA))
+        Spacer(modifier = Modifier.height(48.dp))
+
+        Button(
+            onClick = { navController.navigate("name_entry") },
+            modifier = Modifier.fillMaxWidth().height(50.dp)
+        ) {
+            Text("Enter your name")
+        }
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        LazyColumn(
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-            contentPadding = PaddingValues(bottom = 16.dp)
+        Button(
+            onClick = {
+                navController.navigate("main/$userName") {
+                    popUpTo("onboarding") { inclusive = true }
+                }
+            },
+            enabled = userName.isNotEmpty(),
+            modifier = Modifier.fillMaxWidth().height(50.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF03DAC5))
         ) {
-            items(displayedSubjects, key = { it.id }) { subject ->
-                SubjectItem(subject)
-            }
+            Text(if (userName.isEmpty()) "Get Started" else "Hello, $userName! Start")
         }
     }
 }
 
+// --- TASK 2: NAME ENTRY SCREEN ---
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-//parent
-fun CalendarContent(eventsList: MutableList<CalendarEvent>) {
-    var inputText by remember { mutableStateOf("") }
-    var selectedCategoryForNewEvent by remember { mutableStateOf("Core") }
-    var selectedDeadline by remember { mutableStateOf(System.currentTimeMillis()) }
+fun NameEntryScreen(navController: NavHostController) {
+    var text by rememberSaveable { mutableStateOf("") }
 
-    var sortOption by remember { mutableStateOf("Deadline") }
-
-    val sortedEvents by remember(sortOption, eventsList) {
-        derivedStateOf {
-            when (sortOption) {
-                "Deadline" -> eventsList.sortedBy { it.deadlineMs }
-                "Category" -> eventsList.sortedBy { it.category }
-                else -> eventsList
-            }
+    Column(
+        modifier = Modifier.fillMaxSize().padding(24.dp),
+        verticalArrangement = Arrangement.Center
+    ) {
+        Text("How should we call you?", fontSize = 20.sp, fontWeight = FontWeight.Bold)
+        Spacer(modifier = Modifier.height(16.dp))
+        OutlinedTextField(
+            value = text,
+            onValueChange = { text = it },
+            label = { Text("Your Name") },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true
+        )
+        Spacer(modifier = Modifier.height(24.dp))
+        Button(
+            onClick = {
+                navController.previousBackStackEntry?.savedStateHandle?.set("userName", text.trim())
+                navController.popBackStack()
+            },
+            modifier = Modifier.fillMaxWidth().height(50.dp),
+            enabled = text.isNotBlank()
+        ) {
+            Text("Save")
         }
     }
+}
 
-    Column(modifier = Modifier.fillMaxSize()) {
+// --- TASK 3: TAB NAVIGATION ---
+sealed class BottomNavItem(val route: String, val title: String, val icon: ImageVector) {
+    object List : BottomNavItem("tab_list", "List", Icons.Default.List)
+    object Grid : BottomNavItem("tab_grid", "Grid", Icons.Default.Menu)
+    object Profile : BottomNavItem("tab_profile", "Profile", Icons.Default.Person)
+}
 
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = "Total tasks: ${eventsList.size}",
-                fontWeight = FontWeight.Bold,
-                color = Color.DarkGray
-            )
+@Composable
+fun MainScreen(initialUserName: String) {
+    val bottomNavController = rememberNavController()
 
-            if (eventsList.size > 5) {
-                Badge(
-                    containerColor = Color(0xFFE53935),
-                    contentColor = Color.White
-                ) {
-                    Text("Overloaded!", modifier = Modifier.padding(4.dp))
-                }
-            }
-        }
+    Scaffold(
+        bottomBar = {
+            NavigationBar(containerColor = Color.White) {
+                val navBackStackEntry by bottomNavController.currentBackStackEntryAsState()
+                val currentRoute = navBackStackEntry?.destination?.route
 
-        Spacer(modifier = Modifier.height(12.dp))
-
-        // State Hoisting
-        EventInputPanel(
-            inputText = inputText,
-            onTextChange = { inputText = it },
-            selectedCategory = selectedCategoryForNewEvent,
-            onCategoryChange = { selectedCategoryForNewEvent = it },
-            selectedDeadline = selectedDeadline,
-            onDeadlineChange = { selectedDeadline = it },
-            onAddClick = {
-                if (inputText.isNotBlank()) {
-                    eventsList.add(
-                        CalendarEvent(
-                            title = inputText.trim(),
-                            category = selectedCategoryForNewEvent,
-                            deadlineMs = selectedDeadline
+                val items = listOf(BottomNavItem.List, BottomNavItem.Grid, BottomNavItem.Profile)
+                items.forEach { item ->
+                    NavigationBarItem(
+                        icon = { Icon(item.icon, contentDescription = item.title) },
+                        label = { Text(item.title) },
+                        selected = currentRoute == item.route || currentRoute?.startsWith("details") == true && item == BottomNavItem.List,
+                        onClick = {
+                            bottomNavController.navigate(item.route) {
+                                popUpTo(bottomNavController.graph.startDestinationId) { saveState = true }
+                                launchSingleTop = true
+                                restoreState = true
+                            }
+                        },
+                        colors = NavigationBarItemDefaults.colors(
+                            selectedIconColor = Color(0xFF6200EA),
+                            selectedTextColor = Color(0xFF6200EA),
+                            indicatorColor = Color(0xFFE8DEF8)
                         )
                     )
-                    inputText = ""
                 }
             }
-        )
+        }
+    ) { innerPadding ->
+        NavHost(
+            navController = bottomNavController,
+            startDestination = BottomNavItem.List.route,
+            modifier = Modifier.padding(innerPadding)
+        ) {
+            composable(BottomNavItem.List.route) {
+                ListTabContent(navController = bottomNavController)
+            }
+            composable(BottomNavItem.Grid.route) {
+                GridTabContent(navController = bottomNavController)
+            }
+            composable(BottomNavItem.Profile.route) {
+                ProfileTabContent(initialUserName)
+            }
+            composable(
+                route = "details/{itemId}",
+                arguments = listOf(navArgument("itemId") { type = NavType.StringType })
+            ) { backStackEntry ->
+                val itemId = backStackEntry.arguments?.getString("itemId")
+                val item = mockSubjects.find { it.id == itemId }
+                if (item != null) {
+                    DetailsScreen(item)
+                }
+            }
+        }
+    }
+}
+
+// --- TASK 4: LIST TAB ---
+@Composable
+fun ListTabContent(navController: NavHostController) {
+    var selectedFilter by rememberSaveable { mutableStateOf("All") }
+
+    val displayedSubjects by remember(selectedFilter) {
+        derivedStateOf {
+            if (selectedFilter == "All") mockSubjects
+            else mockSubjects.filter { it.category == selectedFilter }
+        }
+    }
+
+    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+        Text("Filter by Category:", fontWeight = FontWeight.Bold, color = Color.DarkGray)
+        Spacer(modifier = Modifier.height(8.dp))
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            items(listOf("All", "Core", "Elective", "Project")) { filter ->
+                FilterChip(
+                    selected = selectedFilter == filter,
+                    onClick = { selectedFilter = filter },
+                    label = { Text(filter) },
+                    shape = CircleShape
+                )
+            }
+        }
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        SortDropdownMenu(
-            currentSort = sortOption,
-            onSortChange = { sortOption = it }
-        )
+        LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            items(displayedSubjects, key = { it.id }) { subject ->
+                SubjectListItem(subject) {
+                    navController.navigate("details/${subject.id}")
+                }
+            }
+        }
+    }
+}
 
+// --- TASK 4: GRID TAB ---
+@Composable
+fun GridTabContent(navController: NavHostController) {
+    var sortOption by rememberSaveable { mutableStateOf("By Name") }
+
+    val sortedSubjects by remember(sortOption) {
+        derivedStateOf {
+            when (sortOption) {
+                "By Name" -> mockSubjects.sortedBy { it.subject }
+                "By Grade" -> mockSubjects.sortedByDescending { it.grade }
+                else -> mockSubjects
+            }
+        }
+    }
+
+    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+        Text("Sort by:", fontWeight = FontWeight.Bold, color = Color.DarkGray)
         Spacer(modifier = Modifier.height(8.dp))
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            items(listOf("By Name", "By Grade")) { option ->
+                FilterChip(
+                    selected = sortOption == option,
+                    onClick = { sortOption = option },
+                    label = { Text(option) },
+                    shape = CircleShape
+                )
+            }
+        }
 
-        if (sortedEvents.isEmpty()) {
-            Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center
+        Spacer(modifier = Modifier.height(16.dp))
+
+        LazyVerticalGrid(
+            columns = GridCells.Fixed(2),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            items(sortedSubjects, key = { it.id }) { subject ->
+                SubjectGridItem(subject) {
+                    navController.navigate("details/${subject.id}")
+                }
+            }
+        }
+    }
+}
+
+// --- DETAILS SCREEN ---
+@Composable
+fun DetailsScreen(subject: GradeRecord) {
+    Column(
+        modifier = Modifier.fillMaxSize().padding(24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Icon(Icons.Default.Info, contentDescription = null, modifier = Modifier.size(80.dp), tint = Color(0xFF6200EA))
+        Spacer(modifier = Modifier.height(16.dp))
+        Text(subject.subject, fontSize = 24.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
+        Spacer(modifier = Modifier.height(8.dp))
+        Text("Professor: ${subject.professor}", fontSize = 16.sp, color = Color.Gray)
+        Text("Category: ${subject.category}", fontSize = 16.sp, color = Color.Gray)
+        Spacer(modifier = Modifier.height(24.dp))
+        Box(
+            modifier = Modifier.clip(CircleShape).background(Color(0xFFE8DEF8)).padding(32.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text("${subject.grade}", fontSize = 48.sp, fontWeight = FontWeight.Bold, color = Color(0xFF6200EA))
+        }
+        Spacer(modifier = Modifier.height(24.dp))
+        Text(subject.description, fontSize = 16.sp, textAlign = TextAlign.Center)
+    }
+}
+
+// --- TASK 5: PROFILE TAB (WITH TASKS) ---
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ProfileTabContent(initialUserName: String) {
+    var userName by rememberSaveable { mutableStateOf(initialUserName) }
+
+    val eventsList = remember { mutableStateListOf<CalendarEvent>() }
+    var inputText by rememberSaveable { mutableStateOf("") }
+    var selectedCategoryForNewEvent by rememberSaveable { mutableStateOf("Core") }
+    var selectedDeadline by rememberSaveable { mutableStateOf(System.currentTimeMillis()) }
+
+    LazyColumn(
+        modifier = Modifier.fillMaxSize().padding(16.dp),
+        contentPadding = PaddingValues(bottom = 16.dp)
+    ) {
+        // --- User Profile Section ---
+        item {
+            Text("User Profile", fontSize = 24.sp, fontWeight = FontWeight.Bold)
+            Spacer(modifier = Modifier.height(16.dp))
+            OutlinedTextField(
+                value = userName,
+                onValueChange = { userName = it },
+                label = { Text("Username") },
+                modifier = Modifier.fillMaxWidth()
+            )
+            Spacer(modifier = Modifier.height(24.dp))
+        }
+
+        // --- App Info Section ---
+        item {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
             ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text("App Information", fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text("Name: Digital Gradebook", color = Color.DarkGray)
+                    Text("Version: 1.0.0", color = Color.DarkGray)
+                    Text("Developer: Kateryna", color = Color.DarkGray)
+                }
+            }
+            Spacer(modifier = Modifier.height(32.dp))
+        }
+
+        // --- Task Management Section ---
+        item {
+            Text("My Tasks", fontSize = 24.sp, fontWeight = FontWeight.Bold)
+            Spacer(modifier = Modifier.height(16.dp))
+
+            EventInputPanel(
+                inputText = inputText,
+                onTextChange = { inputText = it },
+                selectedCategory = selectedCategoryForNewEvent,
+                onCategoryChange = { selectedCategoryForNewEvent = it },
+                selectedDeadline = selectedDeadline,
+                onDeadlineChange = { selectedDeadline = it },
+                onAddClick = {
+                    if (inputText.isNotBlank()) {
+                        eventsList.add(
+                            CalendarEvent(
+                                title = inputText.trim(),
+                                category = selectedCategoryForNewEvent,
+                                deadlineMs = selectedDeadline
+                            )
+                        )
+                        inputText = ""
+                    }
+                }
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+        }
+
+        // --- Task List ---
+        if (eventsList.isEmpty()) {
+            item {
                 Text(
-                    text = "The list is empty. Add your first event.",
+                    text = "No tasks yet. Add your first event above.",
                     color = Color.Gray,
-                    fontSize = 16.sp,
+                    modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
                     textAlign = TextAlign.Center
                 )
             }
         } else {
-            LazyColumn(
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-                contentPadding = PaddingValues(bottom = 16.dp)
-            ) {
-                items(sortedEvents, key = { it.id }) { event ->
-                    CalendarEventItem(
-                        event = event,
-                        onDelete = { eventsList.remove(event) }
-                    )
-                }
-            }
-        }
-    }
-}
-@Composable
-//parent - CalendarContent
-fun SortDropdownMenu(currentSort: String, onSortChange: (String) -> Unit) {
-    var expanded by remember { mutableStateOf(false) }
-    val options = listOf("Deadline", "Category")
-
-    Box(modifier = Modifier.wrapContentSize(Alignment.TopStart)) {
-        OutlinedCard(
-            shape = CircleShape,
-            modifier = Modifier.clickable { expanded = true },
-            colors = CardDefaults.outlinedCardColors(containerColor = Color.White)
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-            ) {
-                Text("Sort by: $currentSort", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
-                Icon(Icons.Default.ArrowDropDown, contentDescription = "Expand")
-            }
-        }
-
-        DropdownMenu(
-            expanded = expanded,
-            onDismissRequest = { expanded = false },
-            modifier = Modifier.background(Color.White)
-        ) {
-            options.forEach { option ->
-                DropdownMenuItem(
-                    text = { Text(option) },
-                    onClick = {
-                        onSortChange(option)
-                        expanded = false
-                    }
+            items(eventsList, key = { it.id }) { event ->
+                CalendarEventItem(
+                    event = event,
+                    onDelete = { eventsList.remove(event) }
                 )
+                Spacer(modifier = Modifier.height(12.dp))
             }
         }
     }
 }
 
-// State Hoisted Input Component
+// --- CALENDAR UI COMPONENTS ---
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-//parent - CalendarContent
 fun EventInputPanel(
     inputText: String,
     onTextChange: (String) -> Unit,
@@ -361,15 +492,11 @@ fun EventInputPanel(
                     value = inputText,
                     onValueChange = onTextChange,
                     placeholder = { Text("New Event Title") },
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(56.dp),
+                    modifier = Modifier.weight(1f).height(56.dp),
                     singleLine = true,
                     shape = RoundedCornerShape(28.dp)
                 )
-
                 Spacer(modifier = Modifier.width(8.dp))
-
                 Button(
                     onClick = onAddClick,
                     shape = CircleShape,
@@ -444,69 +571,8 @@ fun EventInputPanel(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-//parent - SubjectsContent
-fun FilterPanel(
-    selectedFilter: String,
-    onFilterSelected: (String) -> Unit,
-    options: List<String>
-) {
-    LazyRow(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        items(options) { filter ->
-            FilterChip(
-                selected = selectedFilter == filter,
-                onClick = { onFilterSelected(filter) },
-                label = { Text(filter) },
-                colors = FilterChipDefaults.filterChipColors(
-                    selectedContainerColor = Color(0xFFE8DEF8),
-                    selectedLabelColor = Color(0xFF6200EA)
-                ),
-                shape = CircleShape
-            )
-        }
-    }
-}
-
-@Composable
-fun SubjectItem(gradeRecord: GradeRecord) {
-    //parent - SubjectsContent
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween,
-        modifier = Modifier
-            .fillMaxWidth()
-            .shadow(2.dp, RoundedCornerShape(12.dp))
-            .background(Color.White, RoundedCornerShape(12.dp))
-            .padding(16.dp)
-    ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(text = gradeRecord.subject, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
-            Spacer(modifier = Modifier.height(2.dp))
-            Text(
-                text = "${gradeRecord.professor} • ${gradeRecord.category}",
-                fontSize = 12.sp,
-                color = Color.DarkGray
-            )
-        }
-        Text(
-            text = gradeRecord.grade.toString(),
-            fontSize = 20.sp,
-            fontWeight = FontWeight.Bold,
-            color = Color(0xFF6200EA)
-        )
-    }
-}
-
-@Composable
-//parent - CalendarContent
-fun CalendarEventItem(
-    event: CalendarEvent,
-    onDelete: () -> Unit // Callback
-) {
+fun CalendarEventItem(event: CalendarEvent, onDelete: () -> Unit) {
     val dateFormatter = remember { SimpleDateFormat("MMM dd, HH:mm", Locale.US) }
 
     Row(
@@ -517,81 +583,59 @@ fun CalendarEventItem(
             .background(Color.White, RoundedCornerShape(12.dp))
             .padding(16.dp)
     ) {
-        Icon(
-            imageVector = Icons.Default.DateRange,
-            contentDescription = null,
-            tint = Color(0xFF6200EA),
-            modifier = Modifier.size(24.dp)
-        )
+        Icon(Icons.Default.DateRange, contentDescription = null, tint = Color(0xFF6200EA), modifier = Modifier.size(24.dp))
         Spacer(modifier = Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(text = event.title, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
             Spacer(modifier = Modifier.height(2.dp))
-            Row(
-                horizontalArrangement = Arrangement.SpaceBetween,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text(
-                    text = "Label: ${event.category}",
-                    fontSize = 12.sp,
-                    color = Color.DarkGray
-                )
-                Text(
-                    text = dateFormatter.format(Date(event.deadlineMs)),
-                    fontSize = 12.sp,
-                    color = Color(0xFFE53935),
-                    fontWeight = FontWeight.Medium
-                )
+            Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
+                Text(text = "Label: ${event.category}", fontSize = 12.sp, color = Color.DarkGray)
+                Text(text = dateFormatter.format(Date(event.deadlineMs)), fontSize = 12.sp, color = Color(0xFFE53935), fontWeight = FontWeight.Medium)
             }
         }
-
         Spacer(modifier = Modifier.width(8.dp))
-
         IconButton(onClick = onDelete, modifier = Modifier.size(24.dp)) {
-            Icon(
-                imageVector = Icons.Default.Delete,
-                contentDescription = "Delete Task",
-                tint = Color(0xFFE53935)
-            )
+            Icon(Icons.Default.Delete, contentDescription = "Delete Task", tint = Color(0xFFE53935))
         }
     }
 }
 
+// --- HELPER UI COMPONENTS ---
 @Composable
-fun StudentProfileCard() {
+fun SubjectListItem(gradeRecord: GradeRecord, onClick: () -> Unit) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween,
         modifier = Modifier
             .fillMaxWidth()
-            .shadow(8.dp, RoundedCornerShape(20.dp), spotColor = Color(0x336200EA))
-            .background(Color.White, RoundedCornerShape(20.dp))
-            .padding(20.dp)
+            .shadow(2.dp, RoundedCornerShape(12.dp))
+            .background(Color.White, RoundedCornerShape(12.dp))
+            .clickable { onClick() }
+            .padding(16.dp)
     ) {
-        Box(contentAlignment = Alignment.Center) {
-            Image(
-                painter = painterResource(id = R.drawable.my_avatar),
-                contentDescription = "Student photo",
-                modifier = Modifier
-                    .size(72.dp)
-                    .clip(CircleShape)
-                    .border(2.dp, Color(0xFF6200EA), CircleShape),
-                contentScale = ContentScale.Crop
-            )
+        Column(modifier = Modifier.weight(1f)) {
+            Text(text = gradeRecord.subject, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(text = "${gradeRecord.professor} • ${gradeRecord.category}", fontSize = 12.sp, color = Color.DarkGray)
         }
-        Spacer(modifier = Modifier.width(16.dp))
-        Column {
-            Text(text = "Kateryna Ostrovska", fontSize = 20.sp, fontWeight = FontWeight.Bold)
-            Text(text = "Software Engineering", fontSize = 14.sp, color = Color.Gray)
-            Text(
-                text = "GPA: 91.5 | 3rd Year",
-                fontSize = 13.sp,
-                color = Color.White,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier
-                    .padding(top = 8.dp)
-                    .background(Color(0xFF6200EA), RoundedCornerShape(8.dp))
-                    .padding(horizontal = 8.dp, vertical = 4.dp)
-            )
-        }
+        Text(text = gradeRecord.grade.toString(), fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color(0xFF6200EA))
+    }
+}
+
+@Composable
+fun SubjectGridItem(gradeRecord: GradeRecord, onClick: () -> Unit) {
+    Column(
+        modifier = Modifier
+            .shadow(2.dp, RoundedCornerShape(12.dp))
+            .background(Color.White, RoundedCornerShape(12.dp))
+            .clickable { onClick() }
+            .padding(16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(text = gradeRecord.grade.toString(), fontSize = 28.sp, fontWeight = FontWeight.Bold, color = Color(0xFF6200EA))
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(text = gradeRecord.subject, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center, maxLines = 2)
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(text = gradeRecord.category, fontSize = 12.sp, color = Color.Gray)
     }
 }

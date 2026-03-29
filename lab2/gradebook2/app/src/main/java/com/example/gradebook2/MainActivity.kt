@@ -33,17 +33,33 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewModelScope
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.*
 import androidx.navigation.navArgument
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 import java.util.UUID
 
-// --- DATA LAYER ---
+// =============================================================================
+// --- ЗАВДАННЯ 1: DATA LAYER / MODEL ---
+// Усі дата-класи та репозиторій винесені в окремий шар.
+// AppRepository не імпортує жодного класу з androidx.compose.*
+// =============================================================================
+
 data class GradeRecord(
     val id: String = UUID.randomUUID().toString(),
     val subject: String,
@@ -61,15 +77,291 @@ data class CalendarEvent(
     val deadlineMs: Long
 )
 
-val mockSubjects = listOf(
-    GradeRecord(subject = "Mobile Development", grade = 95, label = "Excellent", category = "Core", professor = "Dr. Smith"),
-    GradeRecord(subject = "Data Engineering", grade = 92, label = "Excellent", category = "Core", professor = "Prof. Johnson"),
-    GradeRecord(subject = "UI/UX Basics", grade = 96, label = "Excellent", category = "Elective", professor = "Ms. Wilson"),
-    GradeRecord(subject = "Algorithms", grade = 88, label = "Good", category = "Core", professor = "Dr. Alan"),
-    GradeRecord(subject = "Machine Learning", grade = 98, label = "Excellent", category = "Project", professor = "Dr. Turing")
-)
+/**
+ * ЗАВДАННЯ 1 — Репозиторій (Model layer).
+ * Клас інкапсулює доступ до всіх даних застосунку.
+ * Не імпортує жодного класу з androidx.compose.*.
+ * Надає методи: getAll(), getById(), getCategories().
+ * Тестові дані зберігаються виключно тут.
+ */
+class AppRepository {
+    private val subjects = listOf(
+        GradeRecord(subject = "Mobile Development", grade = 95, label = "Excellent", category = "Core", professor = "Dr. Smith"),
+        GradeRecord(subject = "Data Engineering", grade = 92, label = "Excellent", category = "Core", professor = "Prof. Johnson"),
+        GradeRecord(subject = "UI/UX Basics", grade = 96, label = "Excellent", category = "Elective", professor = "Ms. Wilson"),
+        GradeRecord(subject = "Algorithms", grade = 88, label = "Good", category = "Core", professor = "Dr. Alan"),
+        GradeRecord(subject = "Machine Learning", grade = 98, label = "Excellent", category = "Project", professor = "Dr. Turing")
+    )
 
+    /** Повертає повний список предметів */
+    fun getAllSubjects(): List<GradeRecord> = subjects
+
+    /** Повертає предмет за ідентифікатором або null */
+    fun getSubjectById(id: String): GradeRecord? = subjects.find { it.id == id }
+
+    /** Повертає унікальні категорії для фільтрації */
+    fun getCategories(): List<String> = listOf("All") + subjects.map { it.category }.distinct()
+}
+
+// Singleton-екземпляр репозиторію (у реальному проєкті — DI)
+val appRepository = AppRepository()
+
+// =============================================================================
+// --- ЗАВДАННЯ 2: ViewModel ДЛЯ ОСНОВНОГО СПИСКУ (LIST TAB) ---
+// Зберігає реактивний стан, імітує асинхронне завантаження,
+// надає фільтрований список. Не імпортує UI-фреймворк.
+// =============================================================================
+
+/**
+ * ЗАВДАННЯ 2 — ViewModel для екрану основного списку.
+ * Успадковує androidx.lifecycle.ViewModel.
+ * Стан зберігається у MutableStateFlow / StateFlow.
+ * Імітує асинхронне завантаження з затримкою 0.7 секунди.
+ * Надає відфільтрований список через selectedFilter + filteredSubjects.
+ * Не імпортує жодного UI-фреймворку.
+ */
+class ListViewModel(private val repository: AppRepository) : ViewModel() {
+
+    private val _isLoading = MutableStateFlow(true)
+    val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
+
+    private val _allSubjects = MutableStateFlow<List<GradeRecord>>(emptyList())
+
+    private val _selectedFilter = MutableStateFlow("All")
+    val selectedFilter: StateFlow<String> = _selectedFilter.asStateFlow()
+
+    private val _filteredSubjects = MutableStateFlow<List<GradeRecord>>(emptyList())
+    val filteredSubjects: StateFlow<List<GradeRecord>> = _filteredSubjects.asStateFlow()
+
+    val categories: List<String> = repository.getCategories()
+
+    init {
+        loadSubjects()
+    }
+
+    /** Імітує асинхронне завантаження з репозиторію */
+    private fun loadSubjects() {
+        viewModelScope.launch {
+            _isLoading.value = true
+            delay(700) // імітація затримки мережі
+            _allSubjects.value = repository.getAllSubjects()
+            applyFilter()
+            _isLoading.value = false
+        }
+    }
+
+    /** Оновлює обраний фільтр та перераховує відфільтрований список */
+    fun selectFilter(filter: String) {
+        _selectedFilter.value = filter
+        applyFilter()
+    }
+
+    private fun applyFilter() {
+        val filter = _selectedFilter.value
+        _filteredSubjects.value = if (filter == "All") {
+            _allSubjects.value
+        } else {
+            _allSubjects.value.filter { it.category == filter }
+        }
+    }
+
+    /** Factory для створення ViewModel з параметром repository */
+    class Factory(private val repository: AppRepository) : ViewModelProvider.Factory {
+        @Suppress("UNCHECKED_CAST")
+        override fun <T : ViewModel> create(modelClass: Class<T>): T {
+            return ListViewModel(repository) as T
+        }
+    }
+}
+
+// =============================================================================
+// --- ЗАВДАННЯ 3: ViewModel ДЛЯ ЕКРАНУ ДЕТАЛЕЙ ---
+// Обробляє стани: Loading, Success, Error через sealed interface.
+// Отримує дані через репозиторій за itemId з конструктора.
+// =============================================================================
+
+/**
+ * ЗАВДАННЯ 3 — Sealed interface для стану екрану деталей.
+ * Моделює три стани: завантаження, успіх із даними, помилка.
+ */
+sealed interface DetailUiState {
+    object Loading : DetailUiState
+    data class Success(val subject: GradeRecord, val relatedSubjects: List<GradeRecord>) : DetailUiState
+    data class Error(val message: String) : DetailUiState
+}
+
+/**
+ * ЗАВДАННЯ 3 — ViewModel для екрану деталей.
+ * Приймає itemId через конструктор (потребує ViewModelProvider.Factory).
+ * Отримує дані через репозиторій, обробляє всі стани.
+ * Обчислює додаткові дані: пов'язані предмети тієї ж категорії.
+ * Не імпортує жодного UI-фреймворку.
+ */
+class DetailViewModel(
+    private val itemId: String,
+    private val repository: AppRepository
+) : ViewModel() {
+
+    private val _uiState = MutableStateFlow<DetailUiState>(DetailUiState.Loading)
+    val uiState: StateFlow<DetailUiState> = _uiState.asStateFlow()
+
+    init {
+        loadDetail()
+    }
+
+    private fun loadDetail() {
+        viewModelScope.launch {
+            _uiState.value = DetailUiState.Loading
+            delay(300) // коротка затримка для UX
+            val subject = repository.getSubjectById(itemId)
+            _uiState.value = if (subject != null) {
+                // Обчислення пов'язаних предметів тієї ж категорії (без поточного)
+                val related = repository.getAllSubjects()
+                    .filter { it.category == subject.category && it.id != subject.id }
+                DetailUiState.Success(subject = subject, relatedSubjects = related)
+            } else {
+                DetailUiState.Error("Subject with id=$itemId not found.")
+            }
+        }
+    }
+
+    /** Factory — обов'язкова для передачі itemId у конструктор ViewModel */
+    class Factory(
+        private val itemId: String,
+        private val repository: AppRepository
+    ) : ViewModelProvider.Factory {
+        @Suppress("UNCHECKED_CAST")
+        override fun <T : ViewModel> create(modelClass: Class<T>): T {
+            return DetailViewModel(itemId, repository) as T
+        }
+    }
+}
+
+// =============================================================================
+// --- ЗАВДАННЯ 4: ViewModel ДЛЯ GRID TAB ---
+// Стан sortOption перенесений із View у ViewModel.
+// =============================================================================
+
+/**
+ * ЗАВДАННЯ 4 — ViewModel для Grid-вкладки.
+ * Стан sortOption перенесений з remember у ViewModel.
+ * Надає відсортований список через StateFlow.
+ * Не імпортує жодного UI-фреймворку.
+ */
+class GridViewModel(private val repository: AppRepository) : ViewModel() {
+
+    private val _isLoading = MutableStateFlow(true)
+    val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
+
+    private val _sortOption = MutableStateFlow("By Name")
+    val sortOption: StateFlow<String> = _sortOption.asStateFlow()
+
+    private val _sortedSubjects = MutableStateFlow<List<GradeRecord>>(emptyList())
+    val sortedSubjects: StateFlow<List<GradeRecord>> = _sortedSubjects.asStateFlow()
+
+    val sortOptions = listOf("By Name", "By Grade")
+
+    init {
+        loadAndSort()
+    }
+
+    private fun loadAndSort() {
+        viewModelScope.launch {
+            _isLoading.value = true
+            delay(700)
+            applySort()
+            _isLoading.value = false
+        }
+    }
+
+    /** Оновлює параметр сортування і перераховує список */
+    fun selectSortOption(option: String) {
+        _sortOption.value = option
+        applySort()
+    }
+
+    private fun applySort() {
+        val all = repository.getAllSubjects()
+        _sortedSubjects.value = when (_sortOption.value) {
+            "By Name" -> all.sortedBy { it.subject }
+            "By Grade" -> all.sortedByDescending { it.grade }
+            else -> all
+        }
+    }
+
+    class Factory(private val repository: AppRepository) : ViewModelProvider.Factory {
+        @Suppress("UNCHECKED_CAST")
+        override fun <T : ViewModel> create(modelClass: Class<T>): T {
+            return GridViewModel(repository) as T
+        }
+    }
+}
+
+// =============================================================================
+// --- ЗАВДАННЯ 4: ViewModel ДЛЯ PROFILE TAB ---
+// Бізнес-стан (список задач, userName) перенесений з View у ViewModel.
+// =============================================================================
+
+/**
+ * ЗАВДАННЯ 4 — ViewModel для Profile-вкладки.
+ * Зберігає userName, список задач (CalendarEvent), стан введення.
+ * Весь бізнес-стан (eventsList, selectedCategory, selectedDeadline)
+ * перенесений з remember / @State у ViewModel.
+ * Не імпортує жодного UI-фреймворку.
+ */
+class ProfileViewModel(initialUserName: String) : ViewModel() {
+
+    private val _userName = MutableStateFlow(initialUserName)
+    val userName: StateFlow<String> = _userName.asStateFlow()
+
+    private val _events = MutableStateFlow<List<CalendarEvent>>(emptyList())
+    val events: StateFlow<List<CalendarEvent>> = _events.asStateFlow()
+
+    private val _inputText = MutableStateFlow("")
+    val inputText: StateFlow<String> = _inputText.asStateFlow()
+
+    private val _selectedCategory = MutableStateFlow("Core")
+    val selectedCategory: StateFlow<String> = _selectedCategory.asStateFlow()
+
+    private val _selectedDeadline = MutableStateFlow(System.currentTimeMillis())
+    val selectedDeadline: StateFlow<Long> = _selectedDeadline.asStateFlow()
+
+    fun onUserNameChange(name: String) { _userName.value = name }
+    fun onInputTextChange(text: String) { _inputText.value = text }
+    fun onCategoryChange(category: String) { _selectedCategory.value = category }
+    fun onDeadlineChange(deadline: Long) { _selectedDeadline.value = deadline }
+
+    /** Додає нову задачу до списку якщо заголовок не порожній */
+    fun addEvent() {
+        val title = _inputText.value.trim()
+        if (title.isBlank()) return
+        _events.update { current ->
+            current + CalendarEvent(
+                title = title,
+                category = _selectedCategory.value,
+                deadlineMs = _selectedDeadline.value
+            )
+        }
+        _inputText.value = ""
+    }
+
+    /** Видаляє задачу зі списку */
+    fun deleteEvent(event: CalendarEvent) {
+        _events.update { it - event }
+    }
+
+    class Factory(private val initialUserName: String) : ViewModelProvider.Factory {
+        @Suppress("UNCHECKED_CAST")
+        override fun <T : ViewModel> create(modelClass: Class<T>): T {
+            return ProfileViewModel(initialUserName) as T
+        }
+    }
+}
+
+// =============================================================================
 // --- ENTRY POINT ---
+// =============================================================================
+
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -89,7 +381,17 @@ fun DigitalGradebookTheme(content: @Composable () -> Unit) {
     )
 }
 
-// --- ROOT NAVIGATION ---
+// =============================================================================
+// --- ЗАВДАННЯ 5: НАВІГАЦІЯ (збережена без змін) ---
+// RootNavigation та MainScreen залишаються відповідальними за навігацію.
+// ViewModel не імпортує NavController та не містить навігаційних компонентів.
+// Колбеки onItemClick, onBack залишаються параметрами View-функцій.
+// =============================================================================
+
+/**
+ * ЗАВДАННЯ 5 — Кореневий навігаційний граф.
+ * Маршрути, аргументи та структура навігації не змінені відносно ЛР №5.
+ */
 @Composable
 fun RootNavigation() {
     val navController = rememberNavController()
@@ -111,16 +413,15 @@ fun RootNavigation() {
     }
 }
 
-// --- TASK 1: ONBOARDING SCREEN ---
+// --- ONBOARDING SCREEN (без змін, навігація на рівні View) ---
 @Composable
 fun OnboardingScreen(navController: NavHostController) {
     val savedStateHandle = navController.currentBackStackEntry?.savedStateHandle
-    val userName by savedStateHandle?.getStateFlow<String>("userName", "")?.collectAsState(initial = "") ?: remember { mutableStateOf("") }
+    val userName by savedStateHandle?.getStateFlow<String>("userName", "")
+        ?.collectAsState(initial = "") ?: remember { mutableStateOf("") }
 
     Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(24.dp),
+        modifier = Modifier.fillMaxSize().padding(24.dp),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
@@ -158,10 +459,11 @@ fun OnboardingScreen(navController: NavHostController) {
     }
 }
 
-// --- TASK 2: NAME ENTRY SCREEN ---
+// --- NAME ENTRY SCREEN (без змін) ---
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun NameEntryScreen(navController: NavHostController) {
+    // UI-стан (фокус / локальний текст поля) — допустиме використання rememberSaveable у View
     var text by rememberSaveable { mutableStateOf("") }
 
     Column(
@@ -191,13 +493,17 @@ fun NameEntryScreen(navController: NavHostController) {
     }
 }
 
-// --- TASK 3: TAB NAVIGATION ---
+// --- TAB NAVIGATION ITEMS (без змін) ---
 sealed class BottomNavItem(val route: String, val title: String, val icon: ImageVector) {
     object List : BottomNavItem("tab_list", "List", Icons.Default.List)
     object Grid : BottomNavItem("tab_grid", "Grid", Icons.Default.Menu)
     object Profile : BottomNavItem("tab_profile", "Profile", Icons.Default.Person)
 }
 
+/**
+ * ЗАВДАННЯ 5 — MainScreen зберігає Tab-навігацію та передачу аргументів.
+ * Навігаційний граф не змінено. ViewModel не містить NavController.
+ */
 @Composable
 fun MainScreen(initialUserName: String) {
     val bottomNavController = rememberNavController()
@@ -213,7 +519,8 @@ fun MainScreen(initialUserName: String) {
                     NavigationBarItem(
                         icon = { Icon(item.icon, contentDescription = item.title) },
                         label = { Text(item.title) },
-                        selected = currentRoute == item.route || currentRoute?.startsWith("details") == true && item == BottomNavItem.List,
+                        selected = currentRoute == item.route ||
+                                currentRoute?.startsWith("details") == true && item == BottomNavItem.List,
                         onClick = {
                             bottomNavController.navigate(item.route) {
                                 popUpTo(bottomNavController.graph.startDestinationId) { saveState = true }
@@ -237,165 +544,266 @@ fun MainScreen(initialUserName: String) {
             modifier = Modifier.padding(innerPadding)
         ) {
             composable(BottomNavItem.List.route) {
-                ListTabContent(navController = bottomNavController)
+                // Колбек навігації onItemClick залишається параметром View — не методом ViewModel
+                ListTabContent(onItemClick = { id -> bottomNavController.navigate("details/$id") })
             }
             composable(BottomNavItem.Grid.route) {
-                GridTabContent(navController = bottomNavController)
+                GridTabContent(onItemClick = { id -> bottomNavController.navigate("details/$id") })
             }
             composable(BottomNavItem.Profile.route) {
-                ProfileTabContent(initialUserName)
+                ProfileTabContent(initialUserName = initialUserName)
             }
             composable(
                 route = "details/{itemId}",
                 arguments = listOf(navArgument("itemId") { type = NavType.StringType })
             ) { backStackEntry ->
-                val itemId = backStackEntry.arguments?.getString("itemId")
-                val item = mockSubjects.find { it.id == itemId }
-                if (item != null) {
-                    DetailsScreen(item)
-                }
+                val itemId = backStackEntry.arguments?.getString("itemId") ?: return@composable
+                // onBack — колбек навігації залишається параметром View
+                DetailsScreen(
+                    itemId = itemId,
+                    onBack = { bottomNavController.popBackStack() }
+                )
             }
         }
     }
 }
 
-// --- TASK 4: LIST TAB ---
-@Composable
-fun ListTabContent(navController: NavHostController) {
-    var selectedFilter by rememberSaveable { mutableStateOf("All") }
+// =============================================================================
+// --- VIEW: LIST TAB ---
+// Підписується на StateFlow через collectAsStateWithLifecycle().
+// Дії користувача передаються через методи ViewModel.
+// Колбек onItemClick залишається параметром View.
+// =============================================================================
 
-    val displayedSubjects by remember(selectedFilter) {
-        derivedStateOf {
-            if (selectedFilter == "All") mockSubjects
-            else mockSubjects.filter { it.category == selectedFilter }
-        }
-    }
+/**
+ * ЗАВДАННЯ 2 — View для основного списку.
+ * Підписується на стан ListViewModel через collectAsStateWithLifecycle().
+ * Екземпляр ViewModel створюється через viewModel() з кастомною Factory.
+ * View не містить бізнес-логіки; лише підписка на стан та виклик методів VM.
+ */
+@Composable
+fun ListTabContent(
+    onItemClick: (String) -> Unit, // Колбек навігації залишається у View
+    vm: ListViewModel = viewModel(factory = ListViewModel.Factory(appRepository))
+) {
+    val isLoading by vm.isLoading.collectAsStateWithLifecycle()
+    val filteredSubjects by vm.filteredSubjects.collectAsStateWithLifecycle()
+    val selectedFilter by vm.selectedFilter.collectAsStateWithLifecycle()
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
         Text("Filter by Category:", fontWeight = FontWeight.Bold, color = Color.DarkGray)
         Spacer(modifier = Modifier.height(8.dp))
         LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            items(listOf("All", "Core", "Elective", "Project")) { filter ->
+            items(vm.categories) { filter ->
                 FilterChip(
                     selected = selectedFilter == filter,
-                    onClick = { selectedFilter = filter },
+                    onClick = { vm.selectFilter(filter) }, // дія передається у ViewModel
                     label = { Text(filter) },
                     shape = CircleShape
                 )
             }
         }
-
         Spacer(modifier = Modifier.height(16.dp))
 
-        LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            items(displayedSubjects, key = { it.id }) { subject ->
-                SubjectListItem(subject) {
-                    navController.navigate("details/${subject.id}")
+        if (isLoading) {
+            // Індикатор завантаження під час імітації затримки
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator(color = Color(0xFF6200EA))
+            }
+        } else {
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                items(filteredSubjects, key = { it.id }) { subject ->
+                    SubjectListItem(subject) { onItemClick(subject.id) }
                 }
             }
         }
     }
 }
 
-// --- TASK 4: GRID TAB ---
-@Composable
-fun GridTabContent(navController: NavHostController) {
-    var sortOption by rememberSaveable { mutableStateOf("By Name") }
+// =============================================================================
+// --- VIEW: GRID TAB ---
+// =============================================================================
 
-    val sortedSubjects by remember(sortOption) {
-        derivedStateOf {
-            when (sortOption) {
-                "By Name" -> mockSubjects.sortedBy { it.subject }
-                "By Grade" -> mockSubjects.sortedByDescending { it.grade }
-                else -> mockSubjects
-            }
-        }
-    }
+/**
+ * ЗАВДАННЯ 4 — View для Grid-вкладки.
+ * Підписується на GridViewModel; sortOption більше не зберігається у View.
+ */
+@Composable
+fun GridTabContent(
+    onItemClick: (String) -> Unit,
+    vm: GridViewModel = viewModel(factory = GridViewModel.Factory(appRepository))
+) {
+    val isLoading by vm.isLoading.collectAsStateWithLifecycle()
+    val sortedSubjects by vm.sortedSubjects.collectAsStateWithLifecycle()
+    val sortOption by vm.sortOption.collectAsStateWithLifecycle()
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
         Text("Sort by:", fontWeight = FontWeight.Bold, color = Color.DarkGray)
         Spacer(modifier = Modifier.height(8.dp))
         LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            items(listOf("By Name", "By Grade")) { option ->
+            items(vm.sortOptions) { option ->
                 FilterChip(
                     selected = sortOption == option,
-                    onClick = { sortOption = option },
+                    onClick = { vm.selectSortOption(option) },
                     label = { Text(option) },
                     shape = CircleShape
                 )
             }
         }
-
         Spacer(modifier = Modifier.height(16.dp))
 
-        LazyVerticalGrid(
-            columns = GridCells.Fixed(2),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            items(sortedSubjects, key = { it.id }) { subject ->
-                SubjectGridItem(subject) {
-                    navController.navigate("details/${subject.id}")
+        if (isLoading) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator(color = Color(0xFF6200EA))
+            }
+        } else {
+            LazyVerticalGrid(
+                columns = GridCells.Fixed(2),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                items(sortedSubjects, key = { it.id }) { subject ->
+                    SubjectGridItem(subject) { onItemClick(subject.id) }
                 }
             }
         }
     }
 }
 
-// --- DETAILS SCREEN ---
+// =============================================================================
+// --- VIEW: DETAILS SCREEN ---
+// Обробляє всі стани DetailUiState через when.
+// =============================================================================
+
+/**
+ * ЗАВДАННЯ 3 — View екрану деталей.
+ * ViewModel створюється з кастомною Factory (передається itemId).
+ * View використовує when для обробки Loading / Success / Error.
+ * Колбек onBack залишається параметром View — не методом ViewModel.
+ */
 @Composable
-fun DetailsScreen(subject: GradeRecord) {
-    Column(
-        modifier = Modifier.fillMaxSize().padding(24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Icon(Icons.Default.Info, contentDescription = null, modifier = Modifier.size(80.dp), tint = Color(0xFF6200EA))
-        Spacer(modifier = Modifier.height(16.dp))
-        Text(subject.subject, fontSize = 24.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
-        Spacer(modifier = Modifier.height(8.dp))
-        Text("Professor: ${subject.professor}", fontSize = 16.sp, color = Color.Gray)
-        Text("Category: ${subject.category}", fontSize = 16.sp, color = Color.Gray)
-        Spacer(modifier = Modifier.height(24.dp))
-        Box(
-            modifier = Modifier.clip(CircleShape).background(Color(0xFFE8DEF8)).padding(32.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            Text("${subject.grade}", fontSize = 48.sp, fontWeight = FontWeight.Bold, color = Color(0xFF6200EA))
+fun DetailsScreen(
+    itemId: String,
+    onBack: () -> Unit
+) {
+    val vm: DetailViewModel = viewModel(
+        key = itemId,
+        factory = DetailViewModel.Factory(itemId, appRepository)
+    )
+    val uiState by vm.uiState.collectAsStateWithLifecycle()
+
+    Column(modifier = Modifier.fillMaxSize()) {
+        // Кнопка назад — навігаційний колбек залишається у View
+        IconButton(onClick = onBack, modifier = Modifier.padding(8.dp)) {
+            Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = Color(0xFF6200EA))
         }
-        Spacer(modifier = Modifier.height(24.dp))
-        Text(subject.description, fontSize = 16.sp, textAlign = TextAlign.Center)
+
+        // Обробка всіх варіантів стану через when
+        when (val state = uiState) {
+            is DetailUiState.Loading -> {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(color = Color(0xFF6200EA))
+                }
+            }
+            is DetailUiState.Error -> {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Text(state.message, color = Color.Red, textAlign = TextAlign.Center)
+                }
+            }
+            is DetailUiState.Success -> {
+                val subject = state.subject
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize().padding(horizontal = 24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    item {
+                        Icon(
+                            Icons.Default.Info,
+                            contentDescription = null,
+                            modifier = Modifier.size(80.dp),
+                            tint = Color(0xFF6200EA)
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text(subject.subject, fontSize = 24.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text("Professor: ${subject.professor}", fontSize = 16.sp, color = Color.Gray)
+                        Text("Category: ${subject.category}", fontSize = 16.sp, color = Color.Gray)
+                        Spacer(modifier = Modifier.height(24.dp))
+                        Box(
+                            modifier = Modifier.clip(CircleShape).background(Color(0xFFE8DEF8)).padding(32.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                "${subject.grade}",
+                                fontSize = 48.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF6200EA)
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(24.dp))
+                        Text(subject.description, fontSize = 16.sp, textAlign = TextAlign.Center)
+                        Spacer(modifier = Modifier.height(24.dp))
+                    }
+
+                    // Додаткові дані: пов'язані предмети (обчислені у ViewModel)
+                    if (state.relatedSubjects.isNotEmpty()) {
+                        item {
+                            Text(
+                                "Related in \"${subject.category}\":",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 16.sp,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                        }
+                        items(state.relatedSubjects, key = { it.id }) { related ->
+                            SubjectListItem(related, onClick = {})
+                            Spacer(modifier = Modifier.height(8.dp))
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 
-// --- TASK 5: PROFILE TAB (WITH TASKS) ---
+// =============================================================================
+// --- VIEW: PROFILE TAB ---
+// =============================================================================
+
+/**
+ * ЗАВДАННЯ 4 — View для Profile-вкладки.
+ * Весь бізнес-стан перенесений у ProfileViewModel.
+ * View не містить remember для бізнес-даних.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ProfileTabContent(initialUserName: String) {
-    var userName by rememberSaveable { mutableStateOf(initialUserName) }
-
-    val eventsList = remember { mutableStateListOf<CalendarEvent>() }
-    var inputText by rememberSaveable { mutableStateOf("") }
-    var selectedCategoryForNewEvent by rememberSaveable { mutableStateOf("Core") }
-    var selectedDeadline by rememberSaveable { mutableStateOf(System.currentTimeMillis()) }
+fun ProfileTabContent(
+    initialUserName: String,
+    vm: ProfileViewModel = viewModel(factory = ProfileViewModel.Factory(initialUserName))
+) {
+    val userName by vm.userName.collectAsStateWithLifecycle()
+    val events by vm.events.collectAsStateWithLifecycle()
+    val inputText by vm.inputText.collectAsStateWithLifecycle()
+    val selectedCategory by vm.selectedCategory.collectAsStateWithLifecycle()
+    val selectedDeadline by vm.selectedDeadline.collectAsStateWithLifecycle()
 
     LazyColumn(
         modifier = Modifier.fillMaxSize().padding(16.dp),
         contentPadding = PaddingValues(bottom = 16.dp)
     ) {
-        // --- User Profile Section ---
         item {
             Text("User Profile", fontSize = 24.sp, fontWeight = FontWeight.Bold)
             Spacer(modifier = Modifier.height(16.dp))
             OutlinedTextField(
                 value = userName,
-                onValueChange = { userName = it },
+                onValueChange = { vm.onUserNameChange(it) },
                 label = { Text("Username") },
                 modifier = Modifier.fillMaxWidth()
             )
             Spacer(modifier = Modifier.height(24.dp))
         }
 
-        // --- App Info Section ---
         item {
             Card(
                 modifier = Modifier.fillMaxWidth(),
@@ -413,36 +821,22 @@ fun ProfileTabContent(initialUserName: String) {
             Spacer(modifier = Modifier.height(32.dp))
         }
 
-        // --- Task Management Section ---
         item {
             Text("My Tasks", fontSize = 24.sp, fontWeight = FontWeight.Bold)
             Spacer(modifier = Modifier.height(16.dp))
-
             EventInputPanel(
                 inputText = inputText,
-                onTextChange = { inputText = it },
-                selectedCategory = selectedCategoryForNewEvent,
-                onCategoryChange = { selectedCategoryForNewEvent = it },
+                onTextChange = { vm.onInputTextChange(it) },
+                selectedCategory = selectedCategory,
+                onCategoryChange = { vm.onCategoryChange(it) },
                 selectedDeadline = selectedDeadline,
-                onDeadlineChange = { selectedDeadline = it },
-                onAddClick = {
-                    if (inputText.isNotBlank()) {
-                        eventsList.add(
-                            CalendarEvent(
-                                title = inputText.trim(),
-                                category = selectedCategoryForNewEvent,
-                                deadlineMs = selectedDeadline
-                            )
-                        )
-                        inputText = ""
-                    }
-                }
+                onDeadlineChange = { vm.onDeadlineChange(it) },
+                onAddClick = { vm.addEvent() }
             )
             Spacer(modifier = Modifier.height(16.dp))
         }
 
-        // --- Task List ---
-        if (eventsList.isEmpty()) {
+        if (events.isEmpty()) {
             item {
                 Text(
                     text = "No tasks yet. Add your first event above.",
@@ -452,10 +846,10 @@ fun ProfileTabContent(initialUserName: String) {
                 )
             }
         } else {
-            items(eventsList, key = { it.id }) { event ->
+            items(events, key = { it.id }) { event ->
                 CalendarEventItem(
                     event = event,
-                    onDelete = { eventsList.remove(event) }
+                    onDelete = { vm.deleteEvent(event) }
                 )
                 Spacer(modifier = Modifier.height(12.dp))
             }
@@ -463,7 +857,10 @@ fun ProfileTabContent(initialUserName: String) {
     }
 }
 
-// --- CALENDAR UI COMPONENTS ---
+// =============================================================================
+// --- ДОПОМІЖНІ UI-КОМПОНЕНТИ (без змін у функціоналі) ---
+// =============================================================================
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun EventInputPanel(
@@ -520,12 +917,10 @@ fun EventInputPanel(
                     color = Color.DarkGray,
                     fontWeight = FontWeight.Medium
                 )
-
                 OutlinedButton(
                     onClick = {
                         val calendar = Calendar.getInstance()
                         calendar.timeInMillis = selectedDeadline
-
                         DatePickerDialog(
                             context,
                             { _, year, month, dayOfMonth ->
@@ -590,7 +985,12 @@ fun CalendarEventItem(event: CalendarEvent, onDelete: () -> Unit) {
             Spacer(modifier = Modifier.height(2.dp))
             Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
                 Text(text = "Label: ${event.category}", fontSize = 12.sp, color = Color.DarkGray)
-                Text(text = dateFormatter.format(Date(event.deadlineMs)), fontSize = 12.sp, color = Color(0xFFE53935), fontWeight = FontWeight.Medium)
+                Text(
+                    text = dateFormatter.format(Date(event.deadlineMs)),
+                    fontSize = 12.sp,
+                    color = Color(0xFFE53935),
+                    fontWeight = FontWeight.Medium
+                )
             }
         }
         Spacer(modifier = Modifier.width(8.dp))
@@ -600,7 +1000,6 @@ fun CalendarEventItem(event: CalendarEvent, onDelete: () -> Unit) {
     }
 }
 
-// --- HELPER UI COMPONENTS ---
 @Composable
 fun SubjectListItem(gradeRecord: GradeRecord, onClick: () -> Unit) {
     Row(
@@ -618,7 +1017,12 @@ fun SubjectListItem(gradeRecord: GradeRecord, onClick: () -> Unit) {
             Spacer(modifier = Modifier.height(2.dp))
             Text(text = "${gradeRecord.professor} • ${gradeRecord.category}", fontSize = 12.sp, color = Color.DarkGray)
         }
-        Text(text = gradeRecord.grade.toString(), fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color(0xFF6200EA))
+        Text(
+            text = gradeRecord.grade.toString(),
+            fontSize = 20.sp,
+            fontWeight = FontWeight.Bold,
+            color = Color(0xFF6200EA)
+        )
     }
 }
 
@@ -632,9 +1036,20 @@ fun SubjectGridItem(gradeRecord: GradeRecord, onClick: () -> Unit) {
             .padding(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Text(text = gradeRecord.grade.toString(), fontSize = 28.sp, fontWeight = FontWeight.Bold, color = Color(0xFF6200EA))
+        Text(
+            text = gradeRecord.grade.toString(),
+            fontSize = 28.sp,
+            fontWeight = FontWeight.Bold,
+            color = Color(0xFF6200EA)
+        )
         Spacer(modifier = Modifier.height(8.dp))
-        Text(text = gradeRecord.subject, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center, maxLines = 2)
+        Text(
+            text = gradeRecord.subject,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.SemiBold,
+            textAlign = TextAlign.Center,
+            maxLines = 2
+        )
         Spacer(modifier = Modifier.height(4.dp))
         Text(text = gradeRecord.category, fontSize = 12.sp, color = Color.Gray)
     }

@@ -10,16 +10,27 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.example.gradebook2.data.model.GradeRecord
+import com.example.gradebook2.ui.theme.AppTheme
+import com.example.gradebook2.ui.theme.LocalExtendedColors
+import com.example.gradebook2.ui.theme.PreviewBothThemes
+
+/** Determines grade display colour from [ExtendedColors] based on score. */
+@Composable
+private fun gradeColor(grade: Int) = LocalExtendedColors.current.run {
+    when {
+        grade >= 90 -> gradeExcellent
+        grade >= 75 -> gradeGood
+        else        -> gradeAverage
+    }
+}
 
 @Composable
 fun SubjectListItem(gradeRecord: GradeRecord, onClick: () -> Unit) {
@@ -29,20 +40,47 @@ fun SubjectListItem(gradeRecord: GradeRecord, onClick: () -> Unit) {
         modifier = Modifier
             .fillMaxWidth()
             .shadow(2.dp, RoundedCornerShape(12.dp))
-            .background(Color.White, RoundedCornerShape(12.dp))
+            .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(12.dp))
             .clickable { onClick() }
             .padding(16.dp)
     ) {
         Column(modifier = Modifier.weight(1f)) {
-            Text(text = gradeRecord.subject, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+            Text(
+                text = gradeRecord.subject,
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurface
+            )
             Spacer(modifier = Modifier.height(2.dp))
-            Text(text = "${gradeRecord.professor} • ${gradeRecord.category}", fontSize = 12.sp, color = Color.DarkGray)
+            Text(
+                text = "${gradeRecord.professor} • ${gradeRecord.category}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
         Text(
             text = gradeRecord.grade.toString(),
-            fontSize = 20.sp,
-            fontWeight = FontWeight.Bold,
-            color = Color(0xFF6200EA)
+            style = MaterialTheme.typography.headlineMedium,
+            color = gradeColor(gradeRecord.grade)
+        )
+    }
+}
+
+// ── Previews (ЛР №7 — Завдання 4) ────────────────────────────────────────────
+
+@PreviewBothThemes
+@Composable
+private fun SubjectListItemPreview() {
+    AppTheme {
+        SubjectListItem(
+            gradeRecord = GradeRecord(
+                subject     = "Mobile Development",
+                grade       = 95,
+                label       = "Excellent",
+                category    = "Core",
+                professor   = "Dr. Smith",
+                description = "Sample description"
+            ),
+            onClick = {}
         )
     }
 }

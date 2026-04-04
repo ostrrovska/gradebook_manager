@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -17,44 +18,44 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 
 /**
- * ЛР №5/№6 — екран вводу імені. ЛР №6, Завдання 4: `rememberSaveable` лише для локального UI-тексту поля
- * (дозволено методичкою); для бізнес-даних використовуйте ViewModel на відповідних екранах.
+ * ЛР №5/№6 — екран вводу імені. ЛР №7: шрифти через MaterialTheme.typography.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun NameEntryScreen(navController: NavHostController) {
-    // UI-стан поля вводу — не бізнес-модель
     var text by rememberSaveable { mutableStateOf("") }
 
     Column(
-        modifier = Modifier.fillMaxSize().padding(24.dp),
+        modifier            = Modifier.fillMaxSize().padding(24.dp),
         verticalArrangement = Arrangement.Center
     ) {
-        Text("How should we call you?", fontSize = 20.sp, fontWeight = FontWeight.Bold)
+        Text(
+            "How should we call you?",
+            style = MaterialTheme.typography.titleLarge,
+            color = MaterialTheme.colorScheme.onBackground
+        )
         Spacer(modifier = Modifier.height(16.dp))
         OutlinedTextField(
-            value = text,
+            value         = text,
             onValueChange = { text = it },
-            label = { Text("Your Name") },
-            modifier = Modifier.fillMaxWidth(),
-            singleLine = true
+            label         = { Text("Your Name") },
+            modifier      = Modifier.fillMaxWidth(),
+            singleLine    = true
         )
         Spacer(modifier = Modifier.height(24.dp))
         Button(
-            onClick = {
+            onClick  = {
                 navController.previousBackStackEntry?.savedStateHandle?.set("userName", text.trim())
                 navController.popBackStack()
             },
             modifier = Modifier.fillMaxWidth().height(50.dp),
-            enabled = text.isNotBlank()
+            enabled  = text.isNotBlank()
         ) {
-            Text("Save")
+            Text("Save", style = MaterialTheme.typography.labelLarge)
         }
     }
 }

@@ -2,6 +2,7 @@ package com.example.gradebook2.ui.navigation
 
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
@@ -10,7 +11,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -23,9 +23,8 @@ import com.example.gradebook2.ui.screens.list.ListTabContent
 import com.example.gradebook2.ui.screens.profile.ProfileTabContent
 
 /**
- * ЛР №6 — Завдання 5: Tab-навігація, `details/{itemId}`, збереження стану вкладок (`saveState`/`restoreState`),
- * перехід на деталі з List/Grid через лямбди у Composable, `popBackStack` для назад.
- * NavController лишається тут — не в ViewModel.
+ * ЛР №6 — Завдання 5: Tab-навігація, `details/{itemId}`, збереження стану вкладок.
+ * ЛР №7 — Завдання 3: кольори NavigationBar через MaterialTheme (мінімальні правки навігації).
  */
 @Composable
 fun MainScreen(initialUserName: String) {
@@ -33,28 +32,28 @@ fun MainScreen(initialUserName: String) {
 
     Scaffold(
         bottomBar = {
-            NavigationBar(containerColor = Color.White) {
+            NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
                 val navBackStackEntry by bottomNavController.currentBackStackEntryAsState()
                 val currentRoute = navBackStackEntry?.destination?.route
 
                 val items = listOf(BottomNavItem.List, BottomNavItem.Grid, BottomNavItem.Profile)
                 items.forEach { item ->
                     NavigationBarItem(
-                        icon = { Icon(item.icon, contentDescription = item.title) },
-                        label = { Text(item.title) },
+                        icon     = { Icon(item.icon, contentDescription = item.title) },
+                        label    = { Text(item.title, style = MaterialTheme.typography.labelMedium) },
                         selected = currentRoute == item.route ||
                             currentRoute?.startsWith("details") == true && item == BottomNavItem.List,
-                        onClick = {
+                        onClick  = {
                             bottomNavController.navigate(item.route) {
                                 popUpTo(bottomNavController.graph.startDestinationId) { saveState = true }
                                 launchSingleTop = true
-                                restoreState = true
+                                restoreState    = true
                             }
                         },
                         colors = NavigationBarItemDefaults.colors(
-                            selectedIconColor = Color(0xFF6200EA),
-                            selectedTextColor = Color(0xFF6200EA),
-                            indicatorColor = Color(0xFFE8DEF8)
+                            selectedIconColor   = MaterialTheme.colorScheme.primary,
+                            selectedTextColor   = MaterialTheme.colorScheme.primary,
+                            indicatorColor      = MaterialTheme.colorScheme.primaryContainer
                         )
                     )
                 }
@@ -62,12 +61,11 @@ fun MainScreen(initialUserName: String) {
         }
     ) { innerPadding ->
         NavHost(
-            navController = bottomNavController,
+            navController    = bottomNavController,
             startDestination = BottomNavItem.List.route,
-            modifier = Modifier.padding(innerPadding)
+            modifier         = Modifier.padding(innerPadding)
         ) {
             composable(BottomNavItem.List.route) {
-                // Колбек навігації onItemClick залишається параметром View — не методом ViewModel
                 ListTabContent(onItemClick = { id -> bottomNavController.navigate("details/$id") })
             }
             composable(BottomNavItem.Grid.route) {
@@ -77,11 +75,10 @@ fun MainScreen(initialUserName: String) {
                 ProfileTabContent(initialUserName = initialUserName)
             }
             composable(
-                route = "details/{itemId}",
+                route     = "details/{itemId}",
                 arguments = listOf(navArgument("itemId") { type = NavType.StringType })
             ) { backStackEntry ->
                 val itemId = backStackEntry.arguments?.getString("itemId") ?: return@composable
-                // onBack — колбек навігації залишається параметром View
                 DetailsScreen(
                     itemId = itemId,
                     onBack = { bottomNavController.popBackStack() }

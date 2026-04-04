@@ -16,21 +16,23 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.gradebook2.data.repository.appRepository
 import com.example.gradebook2.ui.components.SubjectGridItem
+import com.example.gradebook2.ui.theme.AppTheme
+import com.example.gradebook2.ui.theme.PreviewBothThemes
 
 /**
- * ЛР №6 — Завдання 4 + 5: View сітки; колбек [onItemClick] — навігація на деталі (параметр View).
+ * ЛР №6 — Завдання 4 + 5: View сітки.
+ * ЛР №7 — Завдання 3/4: усі кольори та шрифти через MaterialTheme; @Preview обох тем.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -38,19 +40,25 @@ fun GridTabContent(
     onItemClick: (String) -> Unit,
     vm: GridViewModel = viewModel(factory = GridViewModel.Factory(appRepository))
 ) {
-    val isLoading by vm.isLoading.collectAsStateWithLifecycle()
+    val isLoading      by vm.isLoading.collectAsStateWithLifecycle()
     val sortedSubjects by vm.sortedSubjects.collectAsStateWithLifecycle()
-    val sortOption by vm.sortOption.collectAsStateWithLifecycle()
+    val sortOption     by vm.sortOption.collectAsStateWithLifecycle()
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-        Text("Sort by:", fontWeight = FontWeight.Bold, color = Color.DarkGray)
+        Text(
+            "Sort by:",
+            style = MaterialTheme.typography.titleSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
         Spacer(modifier = Modifier.height(8.dp))
         LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             items(vm.sortOptions) { option ->
                 FilterChip(
                     selected = sortOption == option,
-                    onClick = { vm.selectSortOption(option) },
-                    label = { Text(option) },
+                    onClick  = { vm.selectSortOption(option) },
+                    label    = {
+                        Text(option, style = MaterialTheme.typography.labelMedium)
+                    },
                     shape = CircleShape
                 )
             }
@@ -59,18 +67,28 @@ fun GridTabContent(
 
         if (isLoading) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator(color = Color(0xFF6200EA))
+                CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
             }
         } else {
             LazyVerticalGrid(
-                columns = GridCells.Fixed(2),
+                columns              = GridCells.Fixed(2),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+                verticalArrangement  = Arrangement.spacedBy(12.dp)
             ) {
                 items(sortedSubjects, key = { it.id }) { subject ->
                     SubjectGridItem(subject) { onItemClick(subject.id) }
                 }
             }
         }
+    }
+}
+
+// ── Previews (ЛР №7 — Завдання 4) ────────────────────────────────────────────
+
+@PreviewBothThemes
+@Composable
+private fun GridTabContentPreview() {
+    AppTheme {
+        GridTabContent(onItemClick = {})
     }
 }

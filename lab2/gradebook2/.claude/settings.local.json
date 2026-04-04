@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cmd /c \"cd /d c:\\\\3y_labs\\\\gradebook_manager\\\\lab2\\\\gradebook2 && gradlew.bat assembleDebug 2>&1\")",
+      "Bash(cmd /c \"cd /d c:\\\\3y_labs\\\\gradebook_manager\\\\lab2\\\\gradebook2 && gradlew.bat assembleDebug\")",
+      "Bash(echo \"Exit code: $?\")",
+      "Bash(cmd /c \"cd /d c:\\\\3y_labs\\\\gradebook_manager\\\\lab2\\\\gradebook2 && gradlew.bat assembleDebug --no-daemon > build_output.txt 2>&1\")",
+      "Bash(powershell -Command \"Set-Location 'c:\\\\3y_labs\\\\gradebook_manager\\\\lab2\\\\gradebook2'; & '.\\\\gradlew.bat' assembleDebug --no-daemon 2>&1 | Tee-Object -FilePath 'build_output.txt'\")",
+      "Bash(Get-Content 'c:\\\\3y_labs\\\\gradebook_manager\\\\lab2\\\\gradebook2\\\\build_output.txt' -Tail 80)"
+    ]
+  }
+}

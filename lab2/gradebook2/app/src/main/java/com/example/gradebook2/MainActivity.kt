@@ -12,7 +12,6 @@ import com.example.gradebook2.ui.theme.ThemeViewModel
 
 class MainActivity : ComponentActivity() {
 
-    // Scoped to Activity — той самий екземпляр, що і viewModel() у ProfileTabContent
     private val themeViewModel: ThemeViewModel by viewModels()
 
     override fun onCreate(savedInstanceState: Bundle?) {

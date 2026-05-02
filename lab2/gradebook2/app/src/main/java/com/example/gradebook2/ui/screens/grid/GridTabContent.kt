@@ -30,10 +30,6 @@ import com.example.gradebook2.ui.components.SubjectGridItem
 import com.example.gradebook2.ui.theme.AppTheme
 import com.example.gradebook2.ui.theme.PreviewBothThemes
 
-/**
- * ЛР №6 — Завдання 4 + 5: View сітки.
- * ЛР №7 — Завдання 3/4: усі кольори та шрифти через MaterialTheme; @Preview обох тем.
- */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun GridTabContent(
@@ -83,7 +79,6 @@ fun GridTabContent(
     }
 }
 
-// ── Previews (ЛР №7 — Завдання 4) ────────────────────────────────────────────
 
 @PreviewBothThemes
 @Composable

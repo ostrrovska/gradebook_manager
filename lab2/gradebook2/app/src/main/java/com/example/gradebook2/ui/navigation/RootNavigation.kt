@@ -9,11 +9,6 @@ import androidx.navigation.navArgument
 import com.example.gradebook2.ui.screens.onboarding.NameEntryScreen
 import com.example.gradebook2.ui.screens.onboarding.OnboardingScreen
 
-/**
- * ЛР №6 — Завдання 5: кореневий навігаційний граф (цілісність з ЛР №5).
- *
- * Перевірити: onboarding → main/{userName}; ViewModel тут не використовуються — лише маршрути.
- */
 @Composable
 fun RootNavigation() {
     val navController = rememberNavController()

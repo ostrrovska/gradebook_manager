@@ -27,7 +27,6 @@ import androidx.navigation.NavHostController
 import com.example.gradebook2.ui.theme.AppTheme
 import com.example.gradebook2.ui.theme.PreviewBothThemes
 
-/** ЛР №5/№6 — кореневий onboarding. ЛР №7: усі кольори/шрифти через MaterialTheme. */
 @Composable
 fun OnboardingScreen(navController: NavHostController) {
     val savedStateHandle = navController.currentBackStackEntry?.savedStateHandle
@@ -82,7 +81,6 @@ fun OnboardingScreen(navController: NavHostController) {
     }
 }
 
-// ── Previews (ЛР №7 — Завдання 4) ────────────────────────────────────────────
 
 @PreviewBothThemes
 @Composable

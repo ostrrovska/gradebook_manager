@@ -36,10 +36,7 @@ import com.example.gradebook2.ui.theme.AppTheme
 import com.example.gradebook2.ui.theme.LocalExtendedColors
 import com.example.gradebook2.ui.theme.PreviewBothThemes
 
-/**
- * ЛР №6 — Завдання 3 + 5: View деталей + навігація назад.
- * ЛР №7 — Завдання 3/4: усі кольори та шрифти через MaterialTheme; @Preview обох тем.
- */
+
 @Composable
 fun DetailsScreen(
     itemId: String,
@@ -162,7 +159,6 @@ fun DetailsScreen(
     }
 }
 
-// ── Previews (ЛР №7 — Завдання 4) ────────────────────────────────────────────
 
 @PreviewBothThemes
 @Composable

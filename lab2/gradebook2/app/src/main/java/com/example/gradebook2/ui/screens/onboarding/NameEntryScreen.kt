@@ -21,9 +21,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 
-/**
- * ЛР №5/№6 — екран вводу імені. ЛР №7: шрифти через MaterialTheme.typography.
- */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun NameEntryScreen(navController: NavHostController) {

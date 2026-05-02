@@ -65,7 +65,6 @@ fun SubjectGridItem(gradeRecord: GradeRecord, onClick: () -> Unit) {
     }
 }
 
-// ── Previews (ЛР №7 — Завдання 4) ────────────────────────────────────────────
 
 @PreviewBothThemes
 @Composable

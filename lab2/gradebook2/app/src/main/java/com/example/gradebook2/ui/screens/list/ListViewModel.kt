@@ -11,18 +11,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
-/**
- * ЛР №6 — Завдання 2: ViewModel для першої вкладки Tab (список предметів).
- *
- * Вимоги методички:
- * — успадковує [androidx.lifecycle.ViewModel];
- * — реактивний стан через [MutableStateFlow] / [StateFlow];
- * — імітація async-завантаження з затримкою в діапазоні 0.5–1 с (тут 700 ms) + індикатор у View;
- * — відфільтрований список за категорією;
- * — без імпорту UI-фреймворку (Compose тощо).
- *
- * Див. підписку у View: [ListTabContent] (`collectAsStateWithLifecycle`, `viewModel(factory = ...)`).
- */
 class ListViewModel(private val repository: AppRepository) : ViewModel() {
 
     private val _isLoading = MutableStateFlow(true)
@@ -42,18 +30,16 @@ class ListViewModel(private val repository: AppRepository) : ViewModel() {
         loadSubjects()
     }
 
-    /** Імітує асинхронне завантаження з репозиторію */
     private fun loadSubjects() {
         viewModelScope.launch {
             _isLoading.value = true
-            delay(700) // імітація затримки мережі
+            delay(700)
             _allSubjects.value = repository.getAllSubjects()
             applyFilter()
             _isLoading.value = false
         }
     }
 
-    /** Оновлює обраний фільтр та перераховує відфільтрований список */
     fun selectFilter(filter: String) {
         _selectedFilter.value = filter
         applyFilter()
@@ -68,7 +54,6 @@ class ListViewModel(private val repository: AppRepository) : ViewModel() {
         }
     }
 
-    /** Factory для створення ViewModel з параметром repository */
     class Factory(private val repository: AppRepository) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {

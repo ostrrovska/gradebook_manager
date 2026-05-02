@@ -11,12 +11,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
-/**
- * ЛР №6 — Завдання 4: додаткова ViewModel (друга вкладка Tab — сітка).
- *
- * Бізнес-стан (`sortOption`, відсортований список, завантаження) у StateFlow, не в `remember` у View.
- * Мінімум одна додаткова VM окрім списку й деталей — тут [GridViewModel] і окремо [ProfileViewModel].
- */
 class GridViewModel(private val repository: AppRepository) : ViewModel() {
 
     private val _isLoading = MutableStateFlow(true)
@@ -43,7 +37,6 @@ class GridViewModel(private val repository: AppRepository) : ViewModel() {
         }
     }
 
-    /** Оновлює параметр сортування і перераховує список */
     fun selectSortOption(option: String) {
         _sortOption.value = option
         applySort()

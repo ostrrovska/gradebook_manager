@@ -22,7 +22,6 @@ import com.example.gradebook2.ui.theme.AppTheme
 import com.example.gradebook2.ui.theme.LocalExtendedColors
 import com.example.gradebook2.ui.theme.PreviewBothThemes
 
-/** Determines grade display colour from [ExtendedColors] based on score. */
 @Composable
 private fun gradeColor(grade: Int) = LocalExtendedColors.current.run {
     when {
@@ -64,8 +63,6 @@ fun SubjectListItem(gradeRecord: GradeRecord, onClick: () -> Unit) {
         )
     }
 }
-
-// ── Previews (ЛР №7 — Завдання 4) ────────────────────────────────────────────
 
 @PreviewBothThemes
 @Composable

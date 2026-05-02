@@ -22,10 +22,7 @@ import com.example.gradebook2.ui.screens.grid.GridTabContent
 import com.example.gradebook2.ui.screens.list.ListTabContent
 import com.example.gradebook2.ui.screens.profile.ProfileTabContent
 
-/**
- * ЛР №6 — Завдання 5: Tab-навігація, `details/{itemId}`, збереження стану вкладок.
- * ЛР №7 — Завдання 3: кольори NavigationBar через MaterialTheme (мінімальні правки навігації).
- */
+
 @Composable
 fun MainScreen(initialUserName: String) {
     val bottomNavController = rememberNavController()

@@ -8,12 +8,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 
-/**
- * ЛР №6 — Завдання 4: додаткова ViewModel (третя вкладка Tab — профіль / задачі).
- *
- * У ViewModel перенесено: ім’я, список подій, текст вводу, категорія, дедлайн, операції add/delete.
- * View не тримає бізнес-даних у `remember` — лише підписка на Flow (див. [ProfileTabContent]).
- */
 class ProfileViewModel(initialUserName: String) : ViewModel() {
 
     private val _userName = MutableStateFlow(initialUserName)
@@ -36,7 +30,6 @@ class ProfileViewModel(initialUserName: String) : ViewModel() {
     fun onCategoryChange(category: String) { _selectedCategory.value = category }
     fun onDeadlineChange(deadline: Long) { _selectedDeadline.value = deadline }
 
-    /** Додає нову задачу до списку якщо заголовок не порожній */
     fun addEvent() {
         val title = _inputText.value.trim()
         if (title.isBlank()) return
@@ -50,7 +43,6 @@ class ProfileViewModel(initialUserName: String) : ViewModel() {
         _inputText.value = ""
     }
 
-    /** Видаляє задачу зі списку */
     fun deleteEvent(event: CalendarEvent) {
         _events.update { it - event }
     }

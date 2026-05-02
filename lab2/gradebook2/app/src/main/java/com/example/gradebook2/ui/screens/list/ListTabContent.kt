@@ -28,10 +28,6 @@ import com.example.gradebook2.ui.components.SubjectListItem
 import com.example.gradebook2.ui.theme.AppTheme
 import com.example.gradebook2.ui.theme.PreviewBothThemes
 
-/**
- * ЛР №6 — Завдання 2: View (Composable) для списку.
- * ЛР №7 — Завдання 3/4: усі кольори та шрифти через MaterialTheme; @Preview обох тем.
- */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ListTabContent(
@@ -77,7 +73,6 @@ fun ListTabContent(
     }
 }
 
-// ── Previews (ЛР №7 — Завдання 4) ────────────────────────────────────────────
 
 @PreviewBothThemes
 @Composable

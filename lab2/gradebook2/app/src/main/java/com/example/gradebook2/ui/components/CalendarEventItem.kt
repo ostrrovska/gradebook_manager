@@ -86,7 +86,6 @@ fun CalendarEventItem(event: CalendarEvent, onDelete: () -> Unit) {
     }
 }
 
-// ── Previews (ЛР №7 — Завдання 4) ────────────────────────────────────────────
 
 @PreviewBothThemes
 @Composable

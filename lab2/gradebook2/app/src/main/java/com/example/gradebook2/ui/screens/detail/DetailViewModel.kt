@@ -10,16 +10,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
-/**
- * ЛР №6 — Завдання 3: ViewModel екрану деталей.
- *
- * Вимоги методички:
- * — дані через репозиторій за id;
- * — стани завантаження / успіх / помилка (не знайдено);
- * — додаткові дані: пов’язані предмети тієї ж категорії;
- * — `itemId` у конструкторі → [Factory] ([ViewModelProvider.Factory]);
- * — без NavController / Compose UI.
- */
 class DetailViewModel(
     private val itemId: String,
     private val repository: AppRepository
@@ -35,10 +25,9 @@ class DetailViewModel(
     private fun loadDetail() {
         viewModelScope.launch {
             _uiState.value = DetailUiState.Loading
-            delay(300) // коротка затримка для UX
+            delay(300)
             val subject = repository.getSubjectById(itemId)
             _uiState.value = if (subject != null) {
-                // Обчислення пов'язаних предметів тієї ж категорії (без поточного)
                 val related = repository.getAllSubjects()
                     .filter { it.category == subject.category && it.id != subject.id }
                 DetailUiState.Success(subject = subject, relatedSubjects = related)
@@ -48,7 +37,6 @@ class DetailViewModel(
         }
     }
 
-    /** Factory — обов'язкова для передачі itemId у конструктор ViewModel */
     class Factory(
         private val itemId: String,
         private val repository: AppRepository

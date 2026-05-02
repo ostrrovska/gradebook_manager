@@ -1,6 +1,8 @@
 package com.example.gradebook2.ui.screens.profile
 
+import android.annotation.SuppressLint
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.LocalActivity
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -34,10 +36,8 @@ import com.example.gradebook2.ui.theme.AppTheme
 import com.example.gradebook2.ui.theme.PreviewBothThemes
 import com.example.gradebook2.ui.theme.ThemeViewModel
 
-/**
- * ЛР №6 — Завдання 4: View профілю.
- * ЛР №7: toggle теми через [ThemeViewModel], скопований на рівні Activity.
- */
+
+@SuppressLint("ContextCastToActivity")
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProfileTabContent(
@@ -50,8 +50,7 @@ fun ProfileTabContent(
     val selectedCategory by vm.selectedCategory.collectAsStateWithLifecycle()
     val selectedDeadline by vm.selectedDeadline.collectAsStateWithLifecycle()
 
-    // ThemeViewModel скопований до Activity → той самий екземпляр, що в MainActivity
-    val activity = LocalContext.current as ComponentActivity
+    val activity = LocalActivity.current as ComponentActivity
     val themeVm: ThemeViewModel = viewModel(viewModelStoreOwner = activity)
     val isDark by themeVm.isDarkTheme.collectAsStateWithLifecycle()
 
@@ -190,7 +189,6 @@ fun ProfileTabContent(
     }
 }
 
-// ── Previews (ЛР №7 — Завдання 4) ────────────────────────────────────────────
 
 @PreviewBothThemes
 @Composable

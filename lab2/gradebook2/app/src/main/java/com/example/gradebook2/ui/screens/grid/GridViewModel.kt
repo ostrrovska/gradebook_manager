@@ -4,57 +4,62 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.example.gradebook2.data.model.GradeRecord
+import com.example.gradebook2.data.preferences.UserPreferencesRepository
 import com.example.gradebook2.data.repository.AppRepository
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
-class GridViewModel(private val repository: AppRepository) : ViewModel() {
+// Lab 8, Task 2 — grid reads from Room; Lab 8, Task 5 — sort persisted in DataStore
+class GridViewModel(
+    private val repository: AppRepository,
+    private val prefsRepository: UserPreferencesRepository
+) : ViewModel() {
 
-    private val _isLoading = MutableStateFlow(true)
+    private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
 
+    // Lab 8, Task 5 — sort option starts from DataStore, then follows user interaction
     private val _sortOption = MutableStateFlow("By Name")
     val sortOption: StateFlow<String> = _sortOption.asStateFlow()
 
-    private val _sortedSubjects = MutableStateFlow<List<GradeRecord>>(emptyList())
-    val sortedSubjects: StateFlow<List<GradeRecord>> = _sortedSubjects.asStateFlow()
-
     val sortOptions = listOf("By Name", "By Grade")
 
-    init {
-        loadAndSort()
-    }
+    // Lab 8, Task 2 + Task 5 — reactive combination of Room stream and sort preference
+    val sortedSubjects: StateFlow<List<GradeRecord>> = combine(
+        repository.observeGrades(),
+        _sortOption
+    ) { grades, sort ->
+        when (sort) {
+            "By Name"  -> grades.sortedBy { it.subject }
+            "By Grade" -> grades.sortedByDescending { it.grade }
+            else       -> grades
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    private fun loadAndSort() {
+    init {
+        // Lab 8, Task 5 — load persisted sort preference so grid opens with saved setting
         viewModelScope.launch {
-            _isLoading.value = true
-            delay(700)
-            applySort()
-            _isLoading.value = false
+            prefsRepository.sortModeFlow.collect { _sortOption.value = it }
         }
     }
 
+    // Lab 8, Task 5 — persist chosen sort so it survives app restarts
     fun selectSortOption(option: String) {
         _sortOption.value = option
-        applySort()
+        viewModelScope.launch { prefsRepository.saveSortMode(option) }
     }
 
-    private fun applySort() {
-        val all = repository.getAllSubjects()
-        _sortedSubjects.value = when (_sortOption.value) {
-            "By Name" -> all.sortedBy { it.subject }
-            "By Grade" -> all.sortedByDescending { it.grade }
-            else -> all
-        }
-    }
-
-    class Factory(private val repository: AppRepository) : ViewModelProvider.Factory {
+    class Factory(
+        private val repository: AppRepository,
+        private val prefsRepository: UserPreferencesRepository
+    ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
-        override fun <T : ViewModel> create(modelClass: Class<T>): T {
-            return GridViewModel(repository) as T
-        }
+        override fun <T : ViewModel> create(modelClass: Class<T>): T =
+            GridViewModel(repository, prefsRepository) as T
     }
 }

@@ -15,16 +15,22 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import androidx.navigation.NavHostController
+import com.example.gradebook2.GradeApplication
+import kotlinx.coroutines.launch
 
+// Lab 8, Task 1 — saves entered name to DataStore before navigating to main
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun NameEntryScreen(navController: NavHostController) {
+fun NameEntryScreen(onSave: (String) -> Unit) {
     var text by rememberSaveable { mutableStateOf("") }
+    val app   = LocalContext.current.applicationContext as GradeApplication
+    val scope = rememberCoroutineScope()
 
     Column(
         modifier            = Modifier.fillMaxSize().padding(24.dp),
@@ -35,7 +41,7 @@ fun NameEntryScreen(navController: NavHostController) {
             style = MaterialTheme.typography.titleLarge,
             color = MaterialTheme.colorScheme.onBackground
         )
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(Modifier.height(16.dp))
         OutlinedTextField(
             value         = text,
             onValueChange = { text = it },
@@ -43,16 +49,18 @@ fun NameEntryScreen(navController: NavHostController) {
             modifier      = Modifier.fillMaxWidth(),
             singleLine    = true
         )
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(Modifier.height(24.dp))
         Button(
             onClick  = {
-                navController.previousBackStackEntry?.savedStateHandle?.set("userName", text.trim())
-                navController.popBackStack()
+                val name = text.trim()
+                // Lab 8, Task 1 — persist name to DataStore before leaving screen
+                scope.launch { app.prefsRepository.saveUserName(name) }
+                onSave(name)
             },
             modifier = Modifier.fillMaxWidth().height(50.dp),
             enabled  = text.isNotBlank()
         ) {
-            Text("Save", style = MaterialTheme.typography.labelLarge)
+            Text("Get Started", style = MaterialTheme.typography.labelLarge)
         }
     }
 }

@@ -3,4 +3,6 @@ plugins {
     id("com.android.application") version "8.10.0-alpha05" apply false
     id("org.jetbrains.kotlin.android") version "2.0.21" apply false
     id("org.jetbrains.kotlin.plugin.compose") version "2.0.21" apply false
+    // Lab 8 — KSP for Room annotation processing
+    id("com.google.devtools.ksp") version "2.0.21-1.0.28" apply false
 }

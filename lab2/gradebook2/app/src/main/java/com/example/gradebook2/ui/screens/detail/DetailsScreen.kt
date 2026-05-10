@@ -15,6 +15,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -25,54 +27,58 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.example.gradebook2.data.repository.appRepository
+import com.example.gradebook2.GradeApplication
 import com.example.gradebook2.ui.components.SubjectListItem
 import com.example.gradebook2.ui.theme.AppTheme
 import com.example.gradebook2.ui.theme.LocalExtendedColors
 import com.example.gradebook2.ui.theme.PreviewBothThemes
 
-
+// Lab 9, Task 3 — detail fetches from network via GET /grades/{id}, falls back to Room cache
 @Composable
-fun DetailsScreen(
-    itemId: String,
-    onBack: () -> Unit
-) {
+fun DetailsScreen(itemId: String, onBack: () -> Unit) {
+    val app = LocalContext.current.applicationContext as GradeApplication
     val vm: DetailViewModel = viewModel(
         key     = itemId,
-        factory = DetailViewModel.Factory(itemId, appRepository)
+        factory = DetailViewModel.Factory(itemId, app.repository)
     )
     val uiState by vm.uiState.collectAsStateWithLifecycle()
 
     Column(modifier = Modifier.fillMaxSize()) {
         IconButton(onClick = onBack, modifier = Modifier.padding(8.dp)) {
-            Icon(
-                Icons.Default.ArrowBack,
-                contentDescription = "Back",
-                tint = MaterialTheme.colorScheme.primary
-            )
+            Icon(Icons.Default.ArrowBack, contentDescription = "Back",
+                tint = MaterialTheme.colorScheme.primary)
         }
 
         when (val state = uiState) {
             is DetailUiState.Loading -> {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
                 }
             }
+
+            // Lab 9, Task 5 — error state with retry button
             is DetailUiState.Error -> {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text(
-                        state.message,
-                        color     = MaterialTheme.colorScheme.error,
-                        textAlign = TextAlign.Center,
-                        style     = MaterialTheme.typography.bodyLarge
-                    )
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.padding(24.dp)) {
+                        Text(state.message, color = MaterialTheme.colorScheme.error,
+                            textAlign = TextAlign.Center, style = MaterialTheme.typography.bodyLarge)
+                        Spacer(Modifier.height(16.dp))
+                        Button(onClick = vm::loadDetail) {
+                            Icon(Icons.Default.Refresh, contentDescription = null)
+                            Spacer(Modifier.height(4.dp))
+                            Text("Retry")
+                        }
+                    }
                 }
             }
+
             is DetailUiState.Success -> {
                 val subject = state.subject
                 val gradeColor = LocalExtendedColors.current.run {
@@ -82,37 +88,22 @@ fun DetailsScreen(
                         else                -> gradeAverage
                     }
                 }
-
                 LazyColumn(
-                    modifier          = Modifier.fillMaxSize().padding(horizontal = 24.dp),
+                    modifier            = Modifier.fillMaxSize().padding(horizontal = 24.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     item {
-                        Icon(
-                            Icons.Default.Info,
-                            contentDescription = null,
-                            modifier = Modifier.size(80.dp),
-                            tint     = MaterialTheme.colorScheme.primary
-                        )
-                        Spacer(modifier = Modifier.height(16.dp))
-                        Text(
-                            subject.subject,
-                            style     = MaterialTheme.typography.headlineSmall,
-                            textAlign = TextAlign.Center,
-                            color     = MaterialTheme.colorScheme.onBackground
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            "Professor: ${subject.professor}",
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Text(
-                            "Category: ${subject.category}",
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Spacer(modifier = Modifier.height(24.dp))
+                        Icon(Icons.Default.Info, null,
+                            modifier = Modifier.size(80.dp), tint = MaterialTheme.colorScheme.primary)
+                        Spacer(Modifier.height(16.dp))
+                        Text(subject.subject, style = MaterialTheme.typography.headlineSmall,
+                            textAlign = TextAlign.Center, color = MaterialTheme.colorScheme.onBackground)
+                        Spacer(Modifier.height(8.dp))
+                        Text("Professor: ${subject.professor}", style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("Category: ${subject.category}", style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Spacer(Modifier.height(24.dp))
                         Box(
                             modifier = Modifier
                                 .clip(CircleShape)
@@ -120,37 +111,26 @@ fun DetailsScreen(
                                 .padding(32.dp),
                             contentAlignment = Alignment.Center
                         ) {
-                            Text(
-                                "${subject.grade}",
-                                style = MaterialTheme.typography.displayMedium.copy(
-                                    fontWeight = FontWeight.Bold
-                                ),
-                                color = gradeColor
-                            )
+                            Text("${subject.grade}",
+                                style = MaterialTheme.typography.displayMedium.copy(fontWeight = FontWeight.Bold),
+                                color = gradeColor)
                         }
-                        Spacer(modifier = Modifier.height(24.dp))
-                        Text(
-                            subject.description,
-                            style     = MaterialTheme.typography.bodyLarge,
-                            textAlign = TextAlign.Center,
-                            color     = MaterialTheme.colorScheme.onBackground
-                        )
-                        Spacer(modifier = Modifier.height(24.dp))
+                        Spacer(Modifier.height(24.dp))
+                        Text(subject.description, style = MaterialTheme.typography.bodyLarge,
+                            textAlign = TextAlign.Center, color = MaterialTheme.colorScheme.onBackground)
+                        Spacer(Modifier.height(24.dp))
                     }
-
                     if (state.relatedSubjects.isNotEmpty()) {
                         item {
-                            Text(
-                                "Related in \"${subject.category}\":",
-                                style    = MaterialTheme.typography.titleMedium,
+                            Text("Related in \"${subject.category}\":",
+                                style = MaterialTheme.typography.titleMedium,
                                 modifier = Modifier.fillMaxWidth(),
-                                color    = MaterialTheme.colorScheme.onBackground
-                            )
-                            Spacer(modifier = Modifier.height(8.dp))
+                                color = MaterialTheme.colorScheme.onBackground)
+                            Spacer(Modifier.height(8.dp))
                         }
                         items(state.relatedSubjects, key = { it.id }) { related ->
                             SubjectListItem(related, onClick = {})
-                            Spacer(modifier = Modifier.height(8.dp))
+                            Spacer(Modifier.height(8.dp))
                         }
                     }
                 }
@@ -159,12 +139,27 @@ fun DetailsScreen(
     }
 }
 
+@PreviewBothThemes
+@Composable
+private fun DetailsLoadingPreview() {
+    AppTheme {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            CircularProgressIndicator()
+        }
+    }
+}
 
 @PreviewBothThemes
 @Composable
-private fun DetailsScreenPreview() {
+private fun DetailsErrorPreview() {
     AppTheme {
-        // Shows loading state in preview (VM initialises and triggers async load)
-        DetailsScreen(itemId = "preview-id", onBack = {})
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(24.dp)) {
+                Text("Grade not found. Check network connection.",
+                    color = MaterialTheme.colorScheme.error, textAlign = TextAlign.Center)
+                Spacer(Modifier.height(16.dp))
+                Button(onClick = {}) { Text("Retry") }
+            }
+        }
     }
 }
